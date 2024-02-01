@@ -1,8 +1,8 @@
-title: Pong Wars
+# Pong Wars
 
 Inspired by @vnglst's [Mastodon
 Post](https://hachyderm.io/@vnglst/111828811496422610) and [Java Script
-Version](https://github.com/vnglst/pong-wars)
+Version](https://github.com/vnglst/pong-wars).
 
 ## Dependencies
 
