@@ -166,12 +166,13 @@ void DrawGame(Game *game) {
 int main() {
 
   const char * title = "Pong Wars";
-  const int pause_text_width = MeasureText(PAUSE_TEXT, FONTSIZE);
 
   InitWindow(WIDTH,HEIGHT, title);
 
   bool pause = 0;
   int framesCounter = 0;
+
+  const int pause_text_width = MeasureText(PAUSE_TEXT, FONTSIZE);
 
   Game game = {0};
   SetGame(&game);
