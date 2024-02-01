@@ -19,7 +19,11 @@ you'll probably need to
    [emscripten](https://emscripten.org/).
 2. Modify the paths to raylib and `emscripten.sh` in the makefile to fit your
    environment.
+   
+A working Version can be seen on my blog
+https://www.repetitions.de/posts/pong-wars/
 
 ## TODOs
 
 - prevent balls from getting stuck sometimes.
+- make window rescalable
