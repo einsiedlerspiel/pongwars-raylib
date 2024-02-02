@@ -5,6 +5,8 @@
 
 #if defined(PLATFORM_WEB)
     #include <emscripten/emscripten.h>
+    #include <emscripten/html5.h>
+    #include <sys/param.h>
 #endif
 
 // Color Scheme of my Website
@@ -15,16 +17,17 @@
 /* #define DAY_COLOR SKYBLUE */
 /* #define NIGHT_COLOR DARKBLUE */
 
-#define SQUARE_SIZE 25
-
-#define MAX_RECS_X 24
-#define MAX_RECS_Y 24
-
 #define FONTSIZE 30
 #define PAUSE_TEXT "PAUSED"
 
-#define HEIGHT SQUARE_SIZE * MAX_RECS_Y
-#define WIDTH  SQUARE_SIZE * MAX_RECS_X
+#define MAX_RECS_X  24
+#define MAX_RECS_Y  24
+
+int WIDTH = 600;
+int HEIGHT = 600;
+
+int SQUARE_SIZE = 25;
+
 
 typedef struct {
   Vector2 Position;
@@ -227,10 +230,29 @@ void UpdateDrawFrame(void)
 
 int main()
 {
-  const char * title = "Pong Wars";
 
+#if defined(PLATFORM_WEB)
+  SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+#else
   SetConfigFlags(FLAG_VSYNC_HINT);
-  InitWindow(WIDTH,HEIGHT, title);
+#endif
+
+  InitWindow(WIDTH,HEIGHT, "Pong Wars");
+
+#if defined(PLATFORM_WEB)
+  emscripten_get_canvas_element_size("canvas", &WIDTH, &HEIGHT);
+
+  WIDTH = MIN(WIDTH, HEIGHT);
+
+  SQUARE_SIZE = WIDTH / MAX_RECS_X;
+  // avoid Gaps due to rounding
+  WIDTH = MAX_RECS_X * SQUARE_SIZE;
+  HEIGHT = WIDTH;
+
+  emscripten_set_canvas_element_size("canvas", WIDTH, HEIGHT);
+  SetWindowSize( WIDTH,  HEIGHT);
+  SetWindowMaxSize(WIDTH,  HEIGHT);
+#endif
 
   // needs initialized Window
   pause_text_width = MeasureText(PAUSE_TEXT, FONTSIZE);
