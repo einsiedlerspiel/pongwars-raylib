@@ -250,7 +250,8 @@ int main()
   HEIGHT = WIDTH;
 
   emscripten_set_canvas_element_size("canvas", WIDTH, HEIGHT);
-  SetWindowSize( WIDTH,  HEIGHT);                  // Set window dimensions
+  SetWindowSize( WIDTH,  HEIGHT);
+  SetWindowMaxSize(WIDTH,  HEIGHT);
 #endif
 
   // needs initialized Window
