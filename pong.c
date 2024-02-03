@@ -2,11 +2,10 @@
 
 #include <math.h>
 #include <raylib.h>
+#include <sys/param.h>
 
 #if defined(PLATFORM_WEB)
     #include <emscripten/emscripten.h>
-    #include <emscripten/html5.h>
-    #include <sys/param.h>
 #endif
 
 // Color Scheme of my Website
@@ -20,255 +19,268 @@
 #define FONTSIZE 30
 #define PAUSE_TEXT "PAUSED"
 
-#define MAX_RECS_X  24
-#define MAX_RECS_Y  24
-
-int WIDTH = 600;
-int HEIGHT = 600;
-
-int SQUARE_SIZE = 25;
-
+#define RECS  30
+#define REC_SIZE 20
 
 typedef struct {
-  Vector2 Position;
-  Vector2 Speed;
-  float   Radius;
-  Color   Color;
+     Vector2 Position;
+
+     Vector2 Direction;
+     float   speed;
+
+     Color   Color;
+     float   radius;
 } bBall;
 
 typedef struct {
-  int       squareSize;
-  Rectangle recs[MAX_RECS_X * MAX_RECS_Y];
-  Color     colors[MAX_RECS_X * MAX_RECS_Y];
-} Board;
+     // Pause related
+     int   framesCounter;
+     bool  pause;
 
-typedef struct {
-  int   framesCounter;
-  bool  pause;
-  Board board;
-  bBall DayBall;
-  bBall NightBall;
+     int BoardDim;
+     RenderTexture2D  target;
+
+     // Board
+     Color colors[RECS][RECS];
+
+     // Bouncing Balls
+     bBall DayBall;
+     bBall NightBall;
 } Game;
 
 Game game = {0};
-int pause_text_width;
+int pause_text_width = 0;
 
-void MakeBoard(Board *board)
+void MakeBoard()
 {
-  for (int y = 0; y < MAX_RECS_Y; y++)
-    {
-      for (int x = 0; x < MAX_RECS_X; x++)
-        {
-          board->recs[y * MAX_RECS_X + x].x = SQUARE_SIZE / 2.0f + SQUARE_SIZE * x;
-          board->recs[y * MAX_RECS_X + x].y = SQUARE_SIZE / 2.0f + SQUARE_SIZE * y;
-          board->recs[y * MAX_RECS_X + x].width = SQUARE_SIZE;
-          board->recs[y * MAX_RECS_X + x].height = SQUARE_SIZE;
-          if (MAX_RECS_X / 2 > x)
-              board->colors[y * MAX_RECS_X + x] = DAY_COLOR;
-          else
-              board->colors[y * MAX_RECS_X + x] = NIGHT_COLOR;
-        }
-    }
+     for (int y = 0; y < RECS; y++)
+     {
+          for (int x = 0; x < RECS; x++)
+          {
+               if (RECS / 2 > x)
+                    game.colors[y][x] = DAY_COLOR;
+               else
+                    game.colors[y][x] = NIGHT_COLOR;
+          }
+     }
 }
 
-void DrawBoard(Board *board)
+void DrawBoard()
 {
-  for (int i = 0; i < MAX_RECS_X * MAX_RECS_Y; i++)
-    {
-      DrawRectanglePro(
-                       board->recs[i],
-                       (Vector2){
-                         board->recs[i].width / 2,
-                         board->recs[i].height / 2
-                       },
-                       0,
-                       board->colors[i]);
-    }
+     for (int j = 0; j < RECS; j++)
+     {
+          for (int i = 0; i < RECS; i++)
+          {
+               DrawRectangle(REC_SIZE * j,
+                             REC_SIZE * i,
+                             REC_SIZE,
+                             REC_SIZE,
+                             game.colors[i][j]);
+          }
+     }
 }
 
 int RandomOffset(int offset)
 {
-  return GetRandomValue(-(offset), (offset));
+     return GetRandomValue(-(offset), (offset));
 }
 
 bool coloreq(Color first, Color second)
 {
-  if (first.r == second.r &&
-      first.g == second.g &&
-      first.b == second.b &&
-      first.a == second.a) return true;
-  return false;
+     if (first.r == second.r &&
+         first.g == second.g &&
+         first.b == second.b &&
+         first.a == second.a) return true;
+     return false;
 }
 
 void flipColor(Color *tile)
 {
-  if (coloreq(*tile, DAY_COLOR))
-    *tile = NIGHT_COLOR;
-  else
-    *tile = DAY_COLOR;
+     if (coloreq(*tile, DAY_COLOR))
+          *tile = NIGHT_COLOR;
+     else
+          *tile = DAY_COLOR;
 }
 
 void MakeBouncingBall(bBall *ball, Color color, float startx, float starty)
 {
-  float xspeed = SQUARE_SIZE/2.0f - 1;
-  float yspeed = SQUARE_SIZE/2.0f - 1;
+     float xspeed;
+     float yspeed;
 
-  if (startx > WIDTH / 2.0f)
-    xspeed *= -1;
-  else
-    yspeed *= -1;
+     if (startx > game.BoardDim / 2.0f)
+     {
+          xspeed = -1;
+          yspeed = 1;
+     }
+     else
+     {
+          xspeed =  1;
+          yspeed = -1;
+     }
 
-  ball->Position = (Vector2){ startx, starty};
-  ball->Speed = (Vector2){ xspeed, yspeed };
-  ball->Radius = SQUARE_SIZE*0.5;
-  ball->Color = color;
+     ball->Position = (Vector2){ startx, starty};
+     ball->Direction = (Vector2){ xspeed, yspeed };
+     ball->Color = color;
+     ball->radius = REC_SIZE*0.5;
+     ball->speed = REC_SIZE * 0.5 - 4;
 }
 
-void BouncingBallPosition(bBall *ball, Board *board)
+void BouncingBallPosition(bBall *ball)
 {
-  ball->Position.x += ball->Speed.x;
-  ball->Position.y += ball->Speed.y;
+     ball->Position.x += ball->Direction.x * ball->speed;
+     ball->Position.y += ball->Direction.y * ball->speed;
 
-  // Check walls collision
-  if ((ball->Position.x >= (WIDTH - ball->Radius)) ||
-      (ball->Position.x <= ball->Radius)) ball->Speed.x *= -1.0f;
-  if ((ball->Position.y >= (HEIGHT - ball->Radius)) ||
-      (ball->Position.y <= ball->Radius)) ball->Speed.y *= -1.0f;
+     // Check walls collision
+     if ((ball->Position.x > (game.BoardDim - ball->radius)) ||
+         (ball->Position.x < ball->radius))
+     {
+          ball->Direction.x *= -1;
+          ball->Position.x += ball->Direction.x*ball->speed;
+     }
+     if ((ball->Position.y > (game.BoardDim - ball->radius)) ||
+         (ball->Position.y < ball->radius))
+     {
+          ball->Direction.y *= -1;
+          ball->Position.y += ball->Direction.y*ball->speed;
+     }
 
-  // Check Colour collision
-  for (double angle = 0; angle < (2 * PI); angle += (PI / 4))
-    {
+     // Check Colour collision
+     for (double angle = 0; angle < (2 * PI); angle += (PI / 4))
+     {
+          int i = floor((ball->Position.x + cos(angle) * ball->radius) /
+                        REC_SIZE);
+          int j = floor((ball->Position.y + sin(angle) * ball->radius) /
+                        REC_SIZE);
 
-      int i = floor((ball->Position.x + cos(angle) * ball->Radius) /
-                    SQUARE_SIZE);
-      int j = floor((ball->Position.y + sin(angle) * ball->Radius) /
-                    SQUARE_SIZE);
-
-      if (i >= 0 && i < MAX_RECS_X && j >= 0 && j < MAX_RECS_Y)
-        {
-
-          int k = j * MAX_RECS_X + i;
-
-          if (coloreq(board->colors[k], ball->Color))
-            {
-              flipColor(&(board->colors[k]));
-              // Determine bounce direction based on the angle
-              if (fabs(cos(angle)) > fabs(sin(angle)))
-                ball->Speed.x *= -1;
-              else
-                ball->Speed.y *= -1;
-            }
-        }
-    }
+          if (i >= 0 && i < RECS && j >= 0 && j < RECS)
+          {
+               if (coloreq(game.colors[j][i], ball->Color))
+               {
+                    flipColor(&(game.colors[j][i]));
+                    // Determine bounce direction based on the angle
+                    if (fabs(cos(angle)) > fabs(sin(angle)))
+                         ball->Direction.x *= -1;
+                    else
+                         ball->Direction.y *= -1;
+               }
+          }
+     }
 }
 
 void DrawBouncingBall(bBall *ball)
 {
-  /* Draw Bouncing Ball */
-  DrawCircleV(ball->Position, ball->Radius, ball->Color);
+     /* Draw Bouncing Ball */
+     DrawCircleV(ball->Position, ball->radius, ball->Color);
 }
 
 void SetGame()
 {
-  MakeBoard(&game.board);
-  MakeBouncingBall(&game.DayBall,
-                   DAY_COLOR,
-                   (WIDTH / 4.0f) * 3 +
-                   RandomOffset(WIDTH / 4),
-                   HEIGHT/2.0f + RandomOffset(HEIGHT/2));
-  MakeBouncingBall(&game.NightBall,
-                   NIGHT_COLOR,
-                   (WIDTH / 4.0f) +
-                   RandomOffset(WIDTH / 4),
-                   HEIGHT/2.0f + RandomOffset(HEIGHT/2));
+     MakeBoard();
+     MakeBouncingBall(
+          &game.DayBall,
+          DAY_COLOR,
+          (game.BoardDim / 4.0f) * 3 + RandomOffset(game.BoardDim / 4),
+          game.BoardDim/2.0f + RandomOffset(game.BoardDim/2));
+     MakeBouncingBall(
+          &game.NightBall,
+          NIGHT_COLOR,
+          (game.BoardDim / 4.0f) + RandomOffset(game.BoardDim/ 4),
+          game.BoardDim/2.0f + RandomOffset(game.BoardDim/2));
 }
 
 void DrawGame()
 {
-  BeginDrawing();
+     float scale = MIN((float)GetScreenWidth()/game.BoardDim,
+                       (float)GetScreenHeight()/game.BoardDim);
 
-  ClearBackground(RAYWHITE);
+     BeginTextureMode(game.target);
 
-  DrawBoard(&game.board);
-  DrawBouncingBall(&game.DayBall);
-  DrawBouncingBall(&game.NightBall);
+     ClearBackground(RAYWHITE);
 
-  // On pause, we draw a blinking message
-  if (game.pause && ((game.framesCounter/30)%2))
-    {
-      DrawText(PAUSE_TEXT,
-               (WIDTH - pause_text_width)/2,
-               HEIGHT/3,
-               FONTSIZE,
-               WHITE);
-    }
+     DrawBoard();
+     DrawBouncingBall(&game.DayBall);
+     DrawBouncingBall(&game.NightBall);
 
-  EndDrawing();
+     // On pause, we draw a blinking message
+     if (game.pause && ((game.framesCounter/30)%2))
+     {
+          DrawText(PAUSE_TEXT,
+                   (game.BoardDim - pause_text_width)/2,
+                   game.BoardDim/3,
+                   FONTSIZE,
+                   WHITE);
+     }
+     EndTextureMode();
+
+     BeginDrawing();
+     ClearBackground(BLACK);
+     DrawTexturePro(
+          game.target.texture,
+          (Rectangle){
+               0.0f,
+               0.0f,
+               (float)game.target.texture.width,
+               (float)-game.target.texture.height
+          },
+          (Rectangle){
+               (GetScreenWidth() - ((float)game.BoardDim*scale))*0.5f,
+               (GetScreenHeight() - ((float)game.BoardDim*scale))*0.5f,
+               (float)game.BoardDim*scale,
+               (float)game.BoardDim*scale
+          },
+          (Vector2){0, 0},
+          0.0f,
+          WHITE);
+     EndDrawing();
 }
+
 
 void handleInput()
 {
-  // Press P to Pause
-  if (IsKeyPressed(KEY_P)) game.pause = !game.pause;
-  // Press R to reset
-  if (IsKeyPressed(KEY_R)) SetGame();
+     // Press P to Pause
+     if (IsKeyPressed(KEY_P)) game.pause = !game.pause;
+     // Press R to reset
+     if (IsKeyPressed(KEY_R)) SetGame();
 }
 
-void UpdateDrawFrame(void)
+void UpdateDrawFrame()
 {
-  handleInput();
+     handleInput();
+     /* ScaleGame(); */
+     if (!game.pause)
+     {
+          BouncingBallPosition(&game.DayBall);
+          BouncingBallPosition(&game.NightBall);
+     }
+     else game.framesCounter++;
 
-  if (!game.pause)
-    {
-      BouncingBallPosition(&game.DayBall, &game.board);
-      BouncingBallPosition(&game.NightBall, &game.board);
-    }
-  else game.framesCounter++;
-
-  DrawGame();
+     DrawGame();
 }
 
 int main()
 {
+     game.BoardDim = RECS*REC_SIZE;
+
+     SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+     InitWindow(game.BoardDim,game.BoardDim, "Pong Wars");
+
+     game.target = LoadRenderTexture(game.BoardDim, game.BoardDim);
+     SetTextureFilter(game.target.texture, TEXTURE_FILTER_POINT);
+
+     pause_text_width = MeasureText(PAUSE_TEXT, FONTSIZE);
+
+     SetGame();
 
 #if defined(PLATFORM_WEB)
-  SetConfigFlags(FLAG_VSYNC_HINT | FLAG_WINDOW_RESIZABLE);
+     emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
 #else
-  SetConfigFlags(FLAG_VSYNC_HINT);
+     SetTargetFPS(60);
+     while (!WindowShouldClose())
+     {
+          UpdateDrawFrame();
+     }
 #endif
 
-  InitWindow(WIDTH,HEIGHT, "Pong Wars");
-
-#if defined(PLATFORM_WEB)
-  emscripten_get_canvas_element_size("canvas", &WIDTH, &HEIGHT);
-
-  WIDTH = MIN(WIDTH, HEIGHT);
-
-  SQUARE_SIZE = WIDTH / MAX_RECS_X;
-  // avoid Gaps due to rounding
-  WIDTH = MAX_RECS_X * SQUARE_SIZE;
-  HEIGHT = WIDTH;
-
-  emscripten_set_canvas_element_size("canvas", WIDTH, HEIGHT);
-  SetWindowSize( WIDTH,  HEIGHT);
-  SetWindowMaxSize(WIDTH,  HEIGHT);
-#endif
-
-  // needs initialized Window
-  pause_text_width = MeasureText(PAUSE_TEXT, FONTSIZE);
-
-  SetGame();
-
-#if defined(PLATFORM_WEB)
-    emscripten_set_main_loop(UpdateDrawFrame, 0, 1);
-#else
-    SetTargetFPS(60);
-    while (!WindowShouldClose())
-    {
-        UpdateDrawFrame();
-    }
-#endif
-
-  CloseWindow();
-  return 0;
+     CloseWindow();
+     return 0;
 }

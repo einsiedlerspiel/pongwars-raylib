@@ -26,4 +26,3 @@ https://www.repetitions.de/posts/pong-wars/
 ## TODOs
 
 - prevent balls from getting stuck sometimes.
-- make window rescalable
