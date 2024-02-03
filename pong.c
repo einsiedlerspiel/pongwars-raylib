@@ -210,12 +210,32 @@ void DrawGame()
   EndDrawing();
 }
 
+void ScaleBall(bBall *ball, float scale)
+{
+  ball->Position.x *= scale;
+  ball->Position.y *= scale;
+  ball->Speed.x *= scale;
+  ball->Speed.y *= scale;
+  ball->Radius *= scale;
+}
+
+void ScaleGame()
+{
+  WIDTH = MIN(GetScreenWidth(), GetScreenHeight());
+  float scale = (float)WIDTH / boardWidth();
+  game.squareSize *= scale;
+  ScaleBall(&game.DayBall, scale);
+  ScaleBall(&game.NightBall, scale);
+  SetWindowSize(boardWidth(), boardWidth());
+}
+
 void handleInput()
 {
   // Press P to Pause
   if (IsKeyPressed(KEY_P)) game.pause = !game.pause;
   // Press R to reset
   if (IsKeyPressed(KEY_R)) SetGame();
+  if (IsKeyPressed(KEY_U)) ScaleGame();
 }
 
 void UpdateDrawFrame()
