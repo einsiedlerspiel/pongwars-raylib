@@ -27,7 +27,7 @@ int HEIGHT = 600;
 
 typedef struct {
   Vector2 Position;
-  Vector2 Speed;
+  Vector2 Direction;
   float   Radius;
   Color   Color;
 } bBall;
@@ -65,9 +65,15 @@ void MakeBoard()
     }
 }
 
+// Having these makes scaling everything relative to squareSize easier.
 int boardWidth()
 {
   return game.squareSize * MAX_RECS;
+}
+
+float BallSpeed()
+{
+  return game.squareSize * 0.5 - 1;
 }
 
 void DrawBoard()
@@ -109,37 +115,43 @@ void flipColor(Color *tile)
 
 void MakeBouncingBall(bBall *ball, Color color, float startx, float starty)
 {
-  float xspeed = game.squareSize * 0.5 - 1;
-  float yspeed = game.squareSize * 0.5 - 1;
+  float xspeed;
+  float yspeed;
 
   if (startx > WIDTH / 2.0f)
-    xspeed *= -1;
+  {
+    xspeed = -1;
+    yspeed = 1;
+  }
   else
-    yspeed *= -1;
+  {
+    xspeed =  1;
+    yspeed = -1;
+  }
 
   ball->Position = (Vector2){ startx, starty};
-  ball->Speed = (Vector2){ xspeed, yspeed };
+  ball->Direction = (Vector2){ xspeed, yspeed };
   ball->Radius = game.squareSize*0.5;
   ball->Color = color;
 }
 
 void BouncingBallPosition(bBall *ball)
 {
-  ball->Position.x += ball->Speed.x;
-  ball->Position.y += ball->Speed.y;
+  ball->Position.x += ball->Direction.x * BallSpeed();
+  ball->Position.y += ball->Direction.y * BallSpeed();
 
   // Check walls collision
-  if ((ball->Position.x >= (boardWidth() - ball->Radius)) ||
-      (ball->Position.x <= ball->Radius))
+  if ((ball->Position.x > (boardWidth() - ball->Radius)) ||
+      (ball->Position.x < ball->Radius))
   {
-    ball->Speed.x *= -1.0f;
-    ball->Position.x += ball->Speed.x/ball->Radius;
+    ball->Direction.x *= -1;
+    ball->Position.x += ball->Direction.x*(ball->Radius + 1);
   }
-  if ((ball->Position.y >= (boardWidth() - ball->Radius)) ||
-      (ball->Position.y <= ball->Radius))
+  if ((ball->Position.y > (boardWidth() - ball->Radius)) ||
+      (ball->Position.y < ball->Radius))
   {
-    ball->Speed.y *= -1.0f;
-    ball->Position.y += ball->Speed.y/ball->Radius;
+    ball->Direction.y *= -1;
+    ball->Position.y += ball->Direction.y*(ball->Radius + 1);
   }
 
   // Check Colour collision
@@ -158,9 +170,9 @@ void BouncingBallPosition(bBall *ball)
               flipColor(&(game.colors[j][i]));
               // Determine bounce direction based on the angle
               if (fabs(cos(angle)) > fabs(sin(angle)))
-                ball->Speed.x *= -1;
+                ball->Direction.x *= -1;
               else
-                ball->Speed.y *= -1;
+                ball->Direction.y *= -1;
             }
         }
     }
@@ -214,8 +226,6 @@ void ScaleBall(bBall *ball, float scale)
 {
   ball->Position.x *= scale;
   ball->Position.y *= scale;
-  ball->Speed.x *= scale;
-  ball->Speed.y *= scale;
   ball->Radius *= scale;
 }
 
