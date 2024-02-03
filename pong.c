@@ -6,9 +6,9 @@
 #if defined(PLATFORM_WEB)
     #include <emscripten/emscripten.h>
     #include <emscripten/html5.h>
-    #include <sys/param.h>
 #endif
 
+#include <sys/param.h>
 // Color Scheme of my Website
 #define DAY_COLOR   CLITERAL(Color) { 238, 114, 241, 255}
 #define NIGHT_COLOR CLITERAL(Color) { 33, 32, 44, 255}
@@ -20,14 +20,10 @@
 #define FONTSIZE 30
 #define PAUSE_TEXT "PAUSED"
 
-#define MAX_RECS_X  24
-#define MAX_RECS_Y  24
+#define MAX_RECS  24
 
 int WIDTH = 600;
 int HEIGHT = 600;
-
-int SQUARE_SIZE = 25;
-
 
 typedef struct {
   Vector2 Position;
@@ -37,15 +33,15 @@ typedef struct {
 } bBall;
 
 typedef struct {
-  int       squareSize;
-  Rectangle recs[MAX_RECS_X * MAX_RECS_Y];
-  Color     colors[MAX_RECS_X * MAX_RECS_Y];
-} Board;
-
-typedef struct {
+  // Pause related
   int   framesCounter;
   bool  pause;
-  Board board;
+
+  // Board
+  int   squareSize;
+  Color colors[MAX_RECS][MAX_RECS];
+
+  // Bouncing Balls
   bBall DayBall;
   bBall NightBall;
 } Game;
@@ -53,37 +49,40 @@ typedef struct {
 Game game = {0};
 int pause_text_width;
 
-void MakeBoard(Board *board)
+void MakeBoard()
 {
-  for (int y = 0; y < MAX_RECS_Y; y++)
+  if(!game.squareSize) game.squareSize = WIDTH/MAX_RECS;
+
+  for (int y = 0; y < MAX_RECS; y++)
     {
-      for (int x = 0; x < MAX_RECS_X; x++)
+      for (int x = 0; x < MAX_RECS; x++)
         {
-          board->recs[y * MAX_RECS_X + x].x = SQUARE_SIZE / 2.0f + SQUARE_SIZE * x;
-          board->recs[y * MAX_RECS_X + x].y = SQUARE_SIZE / 2.0f + SQUARE_SIZE * y;
-          board->recs[y * MAX_RECS_X + x].width = SQUARE_SIZE;
-          board->recs[y * MAX_RECS_X + x].height = SQUARE_SIZE;
-          if (MAX_RECS_X / 2 > x)
-              board->colors[y * MAX_RECS_X + x] = DAY_COLOR;
+          if (MAX_RECS / 2 > x)
+	    game.colors[y][x] = DAY_COLOR;
           else
-              board->colors[y * MAX_RECS_X + x] = NIGHT_COLOR;
+	    game.colors[y][x] = NIGHT_COLOR;
         }
     }
 }
 
-void DrawBoard(Board *board)
+int boardWidth()
 {
-  for (int i = 0; i < MAX_RECS_X * MAX_RECS_Y; i++)
-    {
-      DrawRectanglePro(
-                       board->recs[i],
-                       (Vector2){
-                         board->recs[i].width / 2,
-                         board->recs[i].height / 2
-                       },
-                       0,
-                       board->colors[i]);
-    }
+  return game.squareSize * MAX_RECS;
+}
+
+void DrawBoard()
+{
+     for (int j = 0; j < MAX_RECS; j++)
+     {
+	  for (int i = 0; i < MAX_RECS; i++)
+	  {
+          DrawRectangle(game.squareSize * j,
+                        game.squareSize * i,
+                        game.squareSize,
+                        game.squareSize,
+                        game.colors[i][j]);
+	  }
+     }
 }
 
 int RandomOffset(int offset)
@@ -110,8 +109,8 @@ void flipColor(Color *tile)
 
 void MakeBouncingBall(bBall *ball, Color color, float startx, float starty)
 {
-  float xspeed = SQUARE_SIZE/2.0f - 1;
-  float yspeed = SQUARE_SIZE/2.0f - 1;
+  float xspeed = game.squareSize * 0.5 - 1;
+  float yspeed = game.squareSize * 0.5 - 1;
 
   if (startx > WIDTH / 2.0f)
     xspeed *= -1;
@@ -120,38 +119,43 @@ void MakeBouncingBall(bBall *ball, Color color, float startx, float starty)
 
   ball->Position = (Vector2){ startx, starty};
   ball->Speed = (Vector2){ xspeed, yspeed };
-  ball->Radius = SQUARE_SIZE*0.5;
+  ball->Radius = game.squareSize*0.5;
   ball->Color = color;
 }
 
-void BouncingBallPosition(bBall *ball, Board *board)
+void BouncingBallPosition(bBall *ball)
 {
   ball->Position.x += ball->Speed.x;
   ball->Position.y += ball->Speed.y;
 
   // Check walls collision
-  if ((ball->Position.x >= (WIDTH - ball->Radius)) ||
-      (ball->Position.x <= ball->Radius)) ball->Speed.x *= -1.0f;
-  if ((ball->Position.y >= (HEIGHT - ball->Radius)) ||
-      (ball->Position.y <= ball->Radius)) ball->Speed.y *= -1.0f;
+  if ((ball->Position.x >= (boardWidth() - ball->Radius)) ||
+      (ball->Position.x <= ball->Radius))
+  {
+    ball->Speed.x *= -1.0f;
+    ball->Position.x += ball->Speed.x/ball->Radius;
+  }
+  if ((ball->Position.y >= (boardWidth() - ball->Radius)) ||
+      (ball->Position.y <= ball->Radius))
+  {
+    ball->Speed.y *= -1.0f;
+    ball->Position.y += ball->Speed.y/ball->Radius;
+  }
 
   // Check Colour collision
   for (double angle = 0; angle < (2 * PI); angle += (PI / 4))
     {
 
       int i = floor((ball->Position.x + cos(angle) * ball->Radius) /
-                    SQUARE_SIZE);
+                    game.squareSize);
       int j = floor((ball->Position.y + sin(angle) * ball->Radius) /
-                    SQUARE_SIZE);
+                    game.squareSize);
 
-      if (i >= 0 && i < MAX_RECS_X && j >= 0 && j < MAX_RECS_Y)
+      if (i >= 0 && i < MAX_RECS && j >= 0 && j < MAX_RECS)
         {
-
-          int k = j * MAX_RECS_X + i;
-
-          if (coloreq(board->colors[k], ball->Color))
+          if (coloreq(game.colors[j][i], ball->Color))
             {
-              flipColor(&(board->colors[k]));
+              flipColor(&(game.colors[j][i]));
               // Determine bounce direction based on the angle
               if (fabs(cos(angle)) > fabs(sin(angle)))
                 ball->Speed.x *= -1;
@@ -170,17 +174,17 @@ void DrawBouncingBall(bBall *ball)
 
 void SetGame()
 {
-  MakeBoard(&game.board);
+  MakeBoard();
   MakeBouncingBall(&game.DayBall,
                    DAY_COLOR,
                    (WIDTH / 4.0f) * 3 +
                    RandomOffset(WIDTH / 4),
-                   HEIGHT/2.0f + RandomOffset(HEIGHT/2));
+                   boardWidth()/2.0f + RandomOffset(boardWidth()/2));
   MakeBouncingBall(&game.NightBall,
                    NIGHT_COLOR,
-                   (WIDTH / 4.0f) +
+                   (boardWidth() / 4.0f) +
                    RandomOffset(WIDTH / 4),
-                   HEIGHT/2.0f + RandomOffset(HEIGHT/2));
+                   boardWidth()/2.0f + RandomOffset(boardWidth()/2));
 }
 
 void DrawGame()
@@ -189,7 +193,7 @@ void DrawGame()
 
   ClearBackground(RAYWHITE);
 
-  DrawBoard(&game.board);
+  DrawBoard();
   DrawBouncingBall(&game.DayBall);
   DrawBouncingBall(&game.NightBall);
 
@@ -197,8 +201,8 @@ void DrawGame()
   if (game.pause && ((game.framesCounter/30)%2))
     {
       DrawText(PAUSE_TEXT,
-               (WIDTH - pause_text_width)/2,
-               HEIGHT/3,
+               (boardWidth() - pause_text_width)/2,
+               boardWidth()/3,
                FONTSIZE,
                WHITE);
     }
@@ -214,14 +218,13 @@ void handleInput()
   if (IsKeyPressed(KEY_R)) SetGame();
 }
 
-void UpdateDrawFrame(void)
+void UpdateDrawFrame()
 {
   handleInput();
-
   if (!game.pause)
     {
-      BouncingBallPosition(&game.DayBall, &game.board);
-      BouncingBallPosition(&game.NightBall, &game.board);
+      BouncingBallPosition(&game.DayBall);
+      BouncingBallPosition(&game.NightBall);
     }
   else game.framesCounter++;
 
@@ -242,11 +245,8 @@ int main()
 #if defined(PLATFORM_WEB)
   emscripten_get_canvas_element_size("canvas", &WIDTH, &HEIGHT);
 
-  WIDTH = MIN(WIDTH, HEIGHT);
-
-  SQUARE_SIZE = WIDTH / MAX_RECS_X;
   // avoid Gaps due to rounding
-  WIDTH = MAX_RECS_X * SQUARE_SIZE;
+  WIDTH = (MIN(WIDTH, HEIGHT) / MAX_RECS) * MAX_RECS;
   HEIGHT = WIDTH;
 
   emscripten_set_canvas_element_size("canvas", WIDTH, HEIGHT);
