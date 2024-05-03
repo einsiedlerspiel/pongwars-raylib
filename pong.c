@@ -22,13 +22,18 @@
 #define RECS  30
 #define REC_SIZE 20
 
+typedef enum {
+     DAY,
+     NIGHT,
+} status;
+
 typedef struct {
      Vector2 Position;
 
      Vector2 Direction;
      float   speed;
 
-     Color   Color;
+     status  team;
      float   radius;
 } bBall;
 
@@ -41,7 +46,7 @@ typedef struct {
      RenderTexture2D  target;
 
      // Board
-     Color colors[RECS][RECS];
+     status board[RECS][RECS];
 
      // Bouncing Balls
      bBall DayBall;
@@ -58,24 +63,27 @@ void MakeBoard()
           for (int x = 0; x < RECS; x++)
           {
                if (RECS / 2 > x)
-                    game.colors[y][x] = DAY_COLOR;
+                    game.board[y][x] = DAY;
                else
-                    game.colors[y][x] = NIGHT_COLOR;
+                    game.board[y][x] = NIGHT;
           }
      }
 }
 
 void DrawBoard()
 {
+     ClearBackground(NIGHT_COLOR);
      for (int j = 0; j < RECS; j++)
      {
           for (int i = 0; i < RECS; i++)
           {
-               DrawRectangle(REC_SIZE * j,
-                             REC_SIZE * i,
-                             REC_SIZE,
-                             REC_SIZE,
-                             game.colors[i][j]);
+               if (game.board[i][j]){
+                    DrawRectangle(REC_SIZE * j,
+                                  REC_SIZE * i,
+                                  REC_SIZE,
+                                  REC_SIZE,
+                                  DAY_COLOR);
+               }
           }
      }
 }
@@ -85,24 +93,8 @@ int RandomOffset(int offset)
      return GetRandomValue(-(offset), (offset));
 }
 
-bool coloreq(Color first, Color second)
-{
-     if (first.r == second.r &&
-         first.g == second.g &&
-         first.b == second.b &&
-         first.a == second.a) return true;
-     return false;
-}
 
-void flipColor(Color *tile)
-{
-     if (coloreq(*tile, DAY_COLOR))
-          *tile = NIGHT_COLOR;
-     else
-          *tile = DAY_COLOR;
-}
-
-void MakeBouncingBall(bBall *ball, Color color, float startx, float starty)
+void MakeBouncingBall(bBall *ball, status team, float startx, float starty)
 {
      float xspeed;
      float yspeed;
@@ -120,8 +112,8 @@ void MakeBouncingBall(bBall *ball, Color color, float startx, float starty)
 
      ball->Position = (Vector2){ startx, starty};
      ball->Direction = (Vector2){ xspeed, yspeed };
-     ball->Color = color;
-     ball->radius = REC_SIZE*0.5;
+     ball->team = team;
+     ball->radius = REC_SIZE* 0.5;
      ball->speed = REC_SIZE * 0.5 - 4;
 }
 
@@ -154,9 +146,9 @@ void BouncingBallPosition(bBall *ball)
 
           if (i >= 0 && i < RECS && j >= 0 && j < RECS)
           {
-               if (coloreq(game.colors[j][i], ball->Color))
+               if (game.board[j][i] == ball->team)
                {
-                    flipColor(&(game.colors[j][i]));
+                    game.board[j][i] = !game.board[j][i];
                     // Determine bounce direction based on the angle
                     if (fabs(cos(angle)) > fabs(sin(angle)))
                          ball->Direction.x *= -1;
@@ -170,7 +162,7 @@ void BouncingBallPosition(bBall *ball)
 void DrawBouncingBall(bBall *ball)
 {
      /* Draw Bouncing Ball */
-     DrawCircleV(ball->Position, ball->radius, ball->Color);
+     DrawCircleV(ball->Position, ball->radius, (ball->team ? DAY_COLOR : NIGHT_COLOR));
 }
 
 void SetGame()
@@ -178,12 +170,12 @@ void SetGame()
      MakeBoard();
      MakeBouncingBall(
           &game.DayBall,
-          DAY_COLOR,
+          DAY,
           (game.BoardDim / 4.0f) * 3 + RandomOffset(game.BoardDim / 4),
           game.BoardDim/2.0f + RandomOffset(game.BoardDim/2));
      MakeBouncingBall(
           &game.NightBall,
-          NIGHT_COLOR,
+          NIGHT,
           (game.BoardDim / 4.0f) + RandomOffset(game.BoardDim/ 4),
           game.BoardDim/2.0f + RandomOffset(game.BoardDim/2));
 }
@@ -194,8 +186,6 @@ void DrawGame()
                        (float)GetScreenHeight()/game.BoardDim);
 
      BeginTextureMode(game.target);
-
-     ClearBackground(RAYWHITE);
 
      DrawBoard();
      DrawBouncingBall(&game.DayBall);
